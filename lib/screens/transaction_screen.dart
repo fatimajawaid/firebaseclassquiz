@@ -5,17 +5,22 @@ import 'package:intl/intl.dart';
 import '../models/transaction.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 
-class TransactionScreen extends ConsumerStatefulWidget {
-  const TransactionScreen({super.key});
-
-  @override
-  ConsumerState<TransactionScreen> createState() => _TransactionScreenState();
+// Create a StateNotifier to manage the transaction adding state
+class TransactionAddingNotifier extends StateNotifier<int> {
+  TransactionAddingNotifier() : super(0);
+  
+  void increment() => state = state + 1;
+  void reset() => state = 0;
 }
 
-class _TransactionScreenState extends ConsumerState<TransactionScreen> {
-  int _currentTransactionIndex = 0;
+final transactionIndexProvider = StateNotifierProvider<TransactionAddingNotifier, int>((ref) {
+  return TransactionAddingNotifier();
+});
 
-  final List<Map<String, dynamic>> sampleTransactions = [
+class TransactionScreen extends ConsumerWidget {
+  const TransactionScreen({super.key});
+
+  static final sampleTransactions = [
     {
       'title': 'Shopping',
       'amount': -25.0,
@@ -54,78 +59,68 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
     },
   ];
 
-  void _addNextTransaction() async {
-    if (_currentTransactionIndex >= sampleTransactions.length) {
-      // Show a snackbar when all transactions have been added
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All sample transactions have been added!'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+  Future<void> _addNextTransaction(WidgetRef ref) async {
+    final currentIndex = ref.read(transactionIndexProvider);
+    print('Current index before adding: $currentIndex'); // Debug print
+
+    if (currentIndex >= sampleTransactions.length) {
+      print('All transactions added'); // Debug print
       return;
     }
 
-    final transaction = sampleTransactions[_currentTransactionIndex];
+    final transaction = sampleTransactions[currentIndex];
+    print('Attempting to add transaction: ${transaction['title']} at index $currentIndex'); // Debug print
+
     final now = DateTime.now();
     final date = now.subtract(Duration(days: transaction['daysAgo'] as int));
 
-    final repository = ref.read(transactionRepositoryProvider);
-    await repository.addTransaction(
-      title: transaction['title'] as String,
-      amount: transaction['amount'] as double,
-      type: transaction['type'] as String,
-      imageUrl: null,
-    );
-
-    setState(() {
-      _currentTransactionIndex++;
-    });
-
-    // Show which transaction was added
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added ${transaction['title']}'),
-          duration: const Duration(seconds: 1),
-        ),
+    try {
+      final repository = ref.read(transactionRepositoryProvider);
+      await repository.addTransaction(
+        title: transaction['title'] as String,
+        amount: transaction['amount'] as double,
+        type: transaction['type'] as String,
+        date: date,
+        imageUrl: null,
       );
+
+      print('Successfully added transaction: ${transaction['title']}'); // Debug print
+      
+      // Increment the index using the StateNotifier
+      ref.read(transactionIndexProvider.notifier).increment();
+      print('New index after increment: ${ref.read(transactionIndexProvider)}'); // Debug print
+    } catch (e) {
+      print('Error adding transaction: $e'); // Debug print
     }
   }
 
-  Future<void> _clearTransactions() async {
-    final collection = firestore.FirebaseFirestore.instance.collection('transactions');
-    final snapshots = await collection.get();
-    final batch = firestore.FirebaseFirestore.instance.batch();
-    
-    for (final doc in snapshots.docs) {
-      batch.delete(doc.reference);
-    }
-    
-    await batch.commit();
-    
-    // Reset the transaction index
-    setState(() {
-      _currentTransactionIndex = 0;
-    });
-
-    // Show confirmation
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All transactions cleared'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+  Future<void> _clearTransactions(WidgetRef ref) async {
+    try {
+      final collection = firestore.FirebaseFirestore.instance.collection('transactions');
+      final snapshots = await collection.get();
+      
+      print('Clearing ${snapshots.docs.length} transactions'); // Debug print
+      
+      // Delete each document individually instead of using batch
+      for (final doc in snapshots.docs) {
+        await doc.reference.delete();
+      }
+      
+      // Reset the index using the StateNotifier
+      ref.read(transactionIndexProvider.notifier).reset();
+      print('Successfully cleared all transactions and reset index'); // Debug print
+    } catch (e) {
+      print('Error clearing transactions: $e'); // Debug print
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final transactionsAsyncValue = ref.watch(transactionProvider);
     final currencyFormat = NumberFormat.currency(symbol: '\$');
+    final currentIndex = ref.watch(transactionIndexProvider);
+
+    print('Current index in build: $currentIndex'); // Debug print
 
     return Scaffold(
       appBar: AppBar(
@@ -133,7 +128,7 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _clearTransactions,
+            onPressed: () => _clearTransactions(ref),
           ),
         ],
       ),
@@ -196,14 +191,10 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (_currentTransactionIndex < sampleTransactions.length)
-                    Text(
-                      '${_currentTransactionIndex + 1}/${sampleTransactions.length}',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 16,
-                      ),
-                    ),
+                  Text(
+                    'Added ${currentIndex}/${sampleTransactions.length}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -262,10 +253,12 @@ class _TransactionScreenState extends ConsumerState<TransactionScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addNextTransaction,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: currentIndex < sampleTransactions.length
+          ? FloatingActionButton(
+              onPressed: () => _addNextTransaction(ref),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 
