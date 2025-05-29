@@ -33,7 +33,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFF8BBD9), Color(0xFFF3E5F5)],
+            colors: [Color.fromARGB(255, 250, 185, 217), Color.fromARGB(255, 255, 255, 255)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -243,13 +243,13 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   }
 
   Widget _buildCategoryList(List<CategoryModel> categories) {
-    // Default categories with exact icons from the photo
+    // Default categories with exact icons matching the Figma design
     final List<Map<String, dynamic>> defaultCategories = [
-      {'name': 'Earn 100%', 'icon': Icons.attach_money_outlined},
-      {'name': 'Tax note', 'icon': Icons.receipt_outlined},
-      {'name': 'Premium', 'icon': Icons.diamond_outlined},
-      {'name': 'Challenge', 'icon': Icons.sports_esports_outlined},
-      {'name': 'More', 'icon': Icons.more_horiz},
+      {'name': 'Earn 100%', 'icon': Icons.percent}, // Percentage icon
+      {'name': 'Tax note', 'icon': Icons.description_outlined}, // Document icon
+      {'name': 'Premium', 'icon': Icons.diamond_outlined}, // Diamond icon
+      {'name': 'Challenge', 'icon': Icons.sports_esports_outlined}, // Gaming controller
+      {'name': 'More', 'icon': Icons.more_horiz}, // Three dots
     ];
 
     return SizedBox(
@@ -848,9 +848,9 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   IconData _getCategoryIcon(String categoryName) {
     switch (categoryName.toLowerCase()) {
       case 'earn 100%':
-        return Icons.attach_money_outlined;
+        return Icons.percent;
       case 'tax note':
-        return Icons.receipt_outlined;
+        return Icons.description_outlined;
       case 'premium':
         return Icons.diamond_outlined;
       case 'challenge':
